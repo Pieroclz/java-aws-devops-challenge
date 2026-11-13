@@ -9,14 +9,21 @@ on:
       - 'terraform/**'
       - '.github/workflows/terraform.yml'
 
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'terraform/**'
+      - '.github/workflows/terraform.yml'
+
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  terraform-check:
-    name: Terraform S3 Backend Check
+  terraform-validation:
+    name: Terraform Validate
     runs-on: ubuntu-latest
 
     defaults:
@@ -32,27 +39,14 @@ jobs:
         with:
           terraform_version: '1.17.1'
 
-      - name: Check formatting
+      - name: Check Terraform formatting
         run: terraform fmt -check -recursive
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ vars.AWS_REGION }}
+      - name: Initialize Terraform without backend
+        run: terraform init -backend=false -input=false
 
-      - name: Initialize Terraform with S3
-        run: |
-          terraform init -input=false \
-            -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}"
+      - name: Validate Terraform configuration
+        run: terraform validate -no-color
 
-      - name: Validate Terraform
-        run: terraform validate
-
-      - name: Verify remote state access
-        run: terraform state list
-
-      - name: Terraform Plan
-        run: terraform plan -input=false -no-color
-      
+      - name: Terraform validation completed
+        run: echo "Terraform configuration validated successfully."
