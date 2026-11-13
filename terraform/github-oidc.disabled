@@ -1,0 +1,140 @@
+
+# ==========================================
+# 1. IDENTIFICAR LA CUENTA AWS
+# ==========================================
+
+data "aws_caller_identity" "current" {}
+
+# ==========================================
+# 2. PROVEEDOR OIDC DE GITHUB
+# ==========================================
+
+resource "aws_iam_openid_connect_provider" "github" {
+  url = "https://token.actions.githubusercontent.com"
+
+  client_id_list = [
+    "sts.amazonaws.com"
+  ]
+
+  tags = {
+    Name    = "github-actions-oidc"
+    Project = var.project_name
+  }
+}
+
+# ==========================================
+# 3. POLITICA DE CONFIANZA
+# ==========================================
+
+data "aws_iam_policy_document" "github_trust" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+
+    principals {
+      type = "Federated"
+
+      identifiers = [
+        aws_iam_openid_connect_provider.github.arn
+      ]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:aud"
+
+      values = ["sts.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:sub"
+
+      values = [
+        "repo:Pieroz1/java-aws-devops-challenge:ref:refs/heads/main"
+      ]
+    }
+  }
+}
+
+# ==========================================
+# 4. ROL PARA GITHUB ACTIONS
+# ==========================================
+
+resource "aws_iam_role" "github_actions" {
+  name = "github-actions-aws-challenge-deploy"
+
+  assume_role_policy = data.aws_iam_policy_document.github_trust.json
+
+  description = "Role for GitHub Actions deployment to ECR and ECS"
+
+  tags = {
+    Name    = "github-actions-aws-challenge-deploy"
+    Project = var.project_name
+  }
+}
+
+# ==========================================
+# 5. PERMISOS PARA ECR Y ECS
+# ==========================================
+
+data "aws_iam_policy_document" "github_deploy" {
+
+  statement {
+    sid = "ECRAuthorization"
+
+    effect = "Allow"
+
+    actions = [
+      "ecr:GetAuthorizationToken"
+    ]
+
+    resources = ["*"]
+  }
+
+  statement {
+    sid = "ECRPush"
+
+    effect = "Allow"
+
+    actions = [
+      "ecr:BatchCheckLayerAvailability",
+      "ecr:CompleteLayerUpload",
+      "ecr:InitiateLayerUpload",
+      "ecr:PutImage",
+      "ecr:UploadLayerPart",
+      "ecr:DescribeRepositories"
+    ]
+
+    resources = [
+      aws_ecr_repository.app.arn
+    ]
+  }
+
+  statement {
+    sid = "ECSDeployment"
+
+    effect = "Allow"
+
+    actions = [
+      "ecs:UpdateService",
+      "ecs:DescribeServices"
+    ]
+
+    resources = [
+      aws_ecs_service.app.arn
+    ]
+  }
+}
+
+resource "aws_iam_policy" "github_deploy" {
+  name        = "github-actions-aws-challenge-policy"
+  description = "Restricted permissions for ECR push and ECS deployment"
+
+  policy = data.aws_iam_policy_document.github_deploy.json
+}
+
+resource "aws_iam_role_policy_attachment" "github_deploy" {
+  role       = aws_iam_role.github_actions.name
+  policy_arn = aws_iam_policy.github_deploy.arn
+}
