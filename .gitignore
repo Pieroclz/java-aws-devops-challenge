@@ -1,0 +1,33 @@
+
+# Maven / Java
+**/target/
+*.class
+*.jar
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+terraform.tfvars
+*.tfvars
+*.tfvars.json
+**/.terraform.tfstate.lock.info
+
+# Secrets
+.env
+.env.*
+*.pem
+*.key
+credentials
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
